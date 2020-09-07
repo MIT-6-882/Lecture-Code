@@ -1,0 +1,17 @@
+Results for WaterDeliveryEnv with num_alias_per_action=10 (branching factor=40).
+
+Approach                        Duration (s)    # Env Steps Taken    Returns
+----------------------------  --------------  -------------------  ---------
+A*                                352.67                       40       0.61
+UCT [Iters=10, Replan=1]            0.763417                   40       0
+UCT [Iters=100, Replan=1]           6.83441                    40       0.11
+UCT [Iters=1000, Replan=1]        118.237                      40       0.51
+UCT [Iters=10, Replan=5]            0.47153                    40       0
+UCT [Iters=100, Replan=5]           2.20385                    40       0.11
+UCT [Iters=1000, Replan=5]         24.6523                     40       0.51
+UCT [Iters=10, Replan=10]           0.353914                   40       0
+UCT [Iters=100, Replan=10]          1.2762                     40       0.01
+UCT [Iters=1000, Replan=10]        17.103                      40       0.41
+UCT [Iters=10, Replan=inf]          0.155136                   40       0
+UCT [Iters=100, Replan=inf]         0.660464                   40       0
+UCT [Iters=1000, Replan=inf]        7.06959                    40       0.01
