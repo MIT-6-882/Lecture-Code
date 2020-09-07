@@ -4,7 +4,7 @@ import numpy as np
 class UCT:
     """Implementation of UCT based on Leslie's lecture notes
     """
-    def __init__(self, actions, reward_fn, transition_fn, done_fn=None, num_search_iters=100, gamma=0.99, seed=0):
+    def __init__(self, actions, reward_fn, transition_fn, done_fn=None, num_search_iters=100, gamma=0.9, seed=0):
         self._actions = actions
         self._reward_fn = reward_fn
         self._transition_fn = transition_fn
@@ -26,8 +26,8 @@ class UCT:
             self._search(state, 0, horizon=horizon)
 
     def get_action(self, state, t=0):
-        # Return best action
-        return max(self._actions, key=lambda a : self._Q[state][a][t])
+        # Return best action, break ties randomly
+        return max(self._actions, key=lambda a : (self._Q[state][a][t], self._rng.uniform()))
 
     def _search(self, s, depth, horizon=100):
         # Base case
@@ -79,37 +79,75 @@ class UCT:
 
 if __name__ == "__main__":
     import imageio
+    import time
+    import pickle
+    from tabulate import tabulate
     from envs.water_delivery import WaterDeliveryEnv
 
-    max_num_steps = 100
-    replanning_interval = 10
-    env = WaterDeliveryEnv()
+    approaches = []
+    durations = []
+    env_steps_taken = []
+    all_returns = []
 
-    uct = UCT(env.ACTIONS, env.compute_reward, env.compute_transition, done_fn=env.compute_done,
-              num_search_iters=1000, gamma=0.9, seed=0)
+    render = False
+    mode = 'medium'
+    max_num_steps = 41
+    gamma = 0.99
+    num_alias_per_action = 10
 
-    state, _ = env.reset()
+    for replanning_interval in [1, 5, 10, float("inf")]:
+        for num_search_iters in [10, 100, 1000]:
+            approaches.append(f'UCT [Iters={num_search_iters}, Replan={replanning_interval}]')
 
-    images = []
-    images.append(env.render())
-    print("Initial state:", env.state_to_str(state))
-    for t in range(max_num_steps):
-        if t % replanning_interval == 0:
-            print("Running UCT...")
-            uct.run(state, horizon=max_num_steps-t)
-            steps_since_replanning = 0
-            print("Done.")
-        action = uct.get_action(state, t=steps_since_replanning)
-        steps_since_replanning += 1
-        print("Taking action", action)
-        state, reward, done, _ = env.step(action)
-        print("State:", env.state_to_str(state))
-        print("Reward, Done:", reward, done)
-        images.append(env.render())
-        if done:
-            break
-    outfile = "/tmp/water_delivery_uct.mp4"
-    imageio.mimsave(outfile, images)
-    print("Wrote out to", outfile)
+            start_time = time.time()
+
+            env = WaterDeliveryEnv(mode=mode, num_alias_per_action=num_alias_per_action)
+
+            uct = UCT(env.get_all_actions(), env.compute_reward, env.compute_transition, done_fn=env.compute_done,
+                      num_search_iters=num_search_iters, gamma=gamma, seed=0)
+
+            state, _ = env.reset()
+            returns = 0.
+
+            if render:
+                images = []
+                images.append(env.render())
+
+            print("Initial state:", env.state_to_str(state))
+            for t in range(max_num_steps):
+                if t % replanning_interval == 0:
+                    print("Running UCT...")
+                    uct.run(state, horizon=max_num_steps-t)
+                    steps_since_replanning = 0
+                    print("Done.")
+                action = uct.get_action(state, t=steps_since_replanning)
+                steps_since_replanning += 1
+                print("Taking action", action)
+                state, reward, done, _ = env.step(action)
+                returns += reward
+                print("State:", env.state_to_str(state))
+                print("Reward, Done:", reward, done)
+                if render:
+                    images.append(env.render())
+                if done:
+                    break
+
+            if render:
+                outfile = "/tmp/water_delivery_uct.mp4"
+                imageio.mimsave(outfile, images)
+                print("Wrote out to", outfile)
+
+            duration = time.time() - start_time
+            durations.append(duration)
+            env_steps_taken.append(t)
+            all_returns.append(returns)
+
+    columns = ["Approach", "Duration (s)", "# Env Steps Taken", "Returns"]
+    table = list(zip(approaches, durations, env_steps_taken, all_returns))
+    print(tabulate(table, headers=columns))
+
+    with open("uct_results.p", "wb") as f:
+        pickle.dump(table, f)
+
 
 

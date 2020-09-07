@@ -2,6 +2,7 @@ try:
     from .utils import render_from_layout, get_asset_path
 except ImportError:
     from utils import render_from_layout, get_asset_path
+import functools
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -19,7 +20,7 @@ class WaterDeliveryEnv:
     # Types of objects
     OBJECTS = ROBOT, ROBOT_WITH_WATER, WATER, PERSON, QUENCHED_PERSON = range(5)
 
-    # Create a default layout
+    # Create layouts
     DEFAULT_LAYOUT = np.zeros((5, 5, len(OBJECTS)), dtype=bool)
     DEFAULT_LAYOUT[4, 2, ROBOT] = 1
     DEFAULT_LAYOUT[0, 4, WATER] = 1
@@ -27,11 +28,35 @@ class WaterDeliveryEnv:
     DEFAULT_LAYOUT[2, 0, PERSON] = 1
     DEFAULT_LAYOUT[3, 0, PERSON] = 1
 
+    MEDIUM_LAYOUT = np.zeros((9, 9, len(OBJECTS)), dtype=bool)
+    MEDIUM_LAYOUT[8, 4, ROBOT] = 1
+    MEDIUM_LAYOUT[0, -1, WATER] = 1
+    MEDIUM_LAYOUT[1, 0, PERSON] = 1
+    MEDIUM_LAYOUT[5, 5, PERSON] = 1
+    MEDIUM_LAYOUT[3, 4, PERSON] = 1
+    MEDIUM_LAYOUT[4, 3, PERSON] = 1
+    MEDIUM_LAYOUT[8, 7, PERSON] = 1
+    MEDIUM_LAYOUT[6, 0, PERSON] = 1
+    MEDIUM_LAYOUT[7, 2, PERSON] = 1
+
+    HARD_LAYOUT = np.zeros((15, 15, len(OBJECTS)), dtype=bool)
+    HARD_LAYOUT[14, 7, ROBOT] = 1
+    HARD_LAYOUT[0, 14, WATER] = 1
+    HARD_LAYOUT[1, 0, PERSON] = 1
+    HARD_LAYOUT[5, 5, PERSON] = 1
+    HARD_LAYOUT[9, 10, PERSON] = 1
+    HARD_LAYOUT[4, 3, PERSON] = 1
+    HARD_LAYOUT[10, 12, PERSON] = 1
+    HARD_LAYOUT[11, 6, PERSON] = 1
+    HARD_LAYOUT[13, 4, PERSON] = 1
+
     # Actions
     ACTIONS = UP, DOWN, LEFT, RIGHT = range(4)
 
     # Reward for quenching
     QUENCH_REWARD = 0.1
+    WATER_PICKUP_REWARD = 0.01
+    MAX_REWARD = max(QUENCH_REWARD, WATER_PICKUP_REWARD)
 
     # For rendering
     TOKEN_IMAGES = {
@@ -50,17 +75,37 @@ class WaterDeliveryEnv:
         QUENCHED_PERSON : "X",
     }
 
-    def __init__(self, layout=None):
+    def __init__(self, layout=None, mode='default', num_alias_per_action=1):
         if layout is None:
-            layout = self.DEFAULT_LAYOUT
+            if mode == 'default':
+                layout = self.DEFAULT_LAYOUT
+            elif mode == 'medium':
+                layout = self.MEDIUM_LAYOUT
+            elif mode == 'hard':
+                layout = self.HARD_LAYOUT
+            else:
+                raise Exception("Unrecognized mode.")
         self._initial_layout = layout
         self._layout = layout.copy()
+        self._num_alias_per_action = num_alias_per_action
 
     def reset(self):
         self._layout = self._initial_layout.copy()
         return self.get_state(), {}
 
+    def get_all_actions(self):
+        actions = [a for a in self.ACTIONS]
+        num_actions = len(actions)
+        assert actions[0] == 0 and actions[-1] == len(actions) - 1
+        for _ in range(self._num_alias_per_action):
+            for _ in range(num_actions):
+                actions.append(max(actions)+1)
+        return actions
+
     def step(self, action):
+        # Handle action aliasing
+        action = action % len(self.ACTIONS)
+
         # Start out reward at 0
         reward = 0
 
@@ -91,6 +136,8 @@ class WaterDeliveryEnv:
             self._layout[rob_r, rob_c, self.ROBOT] = 0
             # Remove water from grid
             self._layout[rob_r, rob_c, self.WATER] = 0
+            # Reward for water pickup
+            reward += self.WATER_PICKUP_REWARD
 
         # Handle people quenching
         if self._layout[rob_r, rob_c, self.ROBOT_WITH_WATER] and self._layout[rob_r, rob_c, self.PERSON]:
@@ -130,6 +177,7 @@ class WaterDeliveryEnv:
         for i, j, k in state:
             self._layout[i, j, k] = 1
 
+    @functools.lru_cache(maxsize=1000)
     def compute_reward(self, state, action):
         original_state = self.get_state()
         self.set_state(state)
@@ -137,6 +185,7 @@ class WaterDeliveryEnv:
         self.set_state(original_state)
         return reward
 
+    @functools.lru_cache(maxsize=1000)
     def compute_transition(self, state, action):
         original_state = self.get_state()
         self.set_state(state)
@@ -144,6 +193,7 @@ class WaterDeliveryEnv:
         self.set_state(original_state)
         return next_state
 
+    @functools.lru_cache(maxsize=1000)
     def compute_done(self, state, action):
         original_state = self.get_state()
         self.set_state(state)
@@ -151,22 +201,33 @@ class WaterDeliveryEnv:
         self.set_state(original_state)
         return done
 
+    @functools.lru_cache(maxsize=1000)
+    def check_goal(self, state):
+        for i, j, k in state:
+            if k == self.PERSON:
+                return False
+        return True
+
 if __name__ == "__main__":
     import imageio
 
-    max_num_steps = 1000
+    max_num_steps = 10
     use_default_layout = False
 
     if use_default_layout:
         layout = None
         dpi = 50
     else:
-        layout = np.zeros((5, 5, len(WaterDeliveryEnv.OBJECTS)), dtype=bool)
-        layout[4, 2, WaterDeliveryEnv.ROBOT] = 1
-        layout[0, 4, WaterDeliveryEnv.WATER] = 1
+        layout = np.zeros((15, 15, len(WaterDeliveryEnv.OBJECTS)), dtype=bool)
+        layout[14, 7, WaterDeliveryEnv.ROBOT] = 1
+        layout[0, 14, WaterDeliveryEnv.WATER] = 1
         layout[1, 0, WaterDeliveryEnv.PERSON] = 1
-        layout[2, 0, WaterDeliveryEnv.PERSON] = 1
-        layout[3, 0, WaterDeliveryEnv.PERSON] = 1
+        layout[5, 5, WaterDeliveryEnv.PERSON] = 1
+        layout[9, 10, WaterDeliveryEnv.PERSON] = 1
+        layout[4, 3, WaterDeliveryEnv.PERSON] = 1
+        layout[10, 12, WaterDeliveryEnv.PERSON] = 1
+        layout[11, 6, WaterDeliveryEnv.PERSON] = 1
+        layout[13, 4, WaterDeliveryEnv.PERSON] = 1
         dpi = 150
 
     images = []
