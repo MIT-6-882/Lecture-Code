@@ -108,7 +108,7 @@ if __name__ == "__main__":
         images.append(env.render())
         if done:
             break
-    outfile = "/tmp/water_delivery_random_actions.mp4"
+    outfile = "/tmp/water_delivery_uct.mp4"
     imageio.mimsave(outfile, images)
     print("Wrote out to", outfile)
 
