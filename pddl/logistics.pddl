@@ -3,11 +3,11 @@
 
 (define (domain logistics)
   (:requirements :strips) 
-  (:predicates 	(package ?obj)
-	       	    (truck ?truck)
-               	(location ?loc)
-		        (at ?obj ?loc)
-		        (in ?obj ?truck))
+  (:predicates  (package ?obj)
+                (truck ?truck)
+                (location ?loc)
+                (at ?obj ?loc)
+                (in ?obj ?truck))
 
  
 (:action load-truck
