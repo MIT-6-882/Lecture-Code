@@ -44,6 +44,7 @@
      (truck ?truck) 
      (location ?loc-from) 
      (location ?loc-to)
+     (road ?loc-from ?loc-to)
      (at ?truck ?loc-from))
   :effect
    (and 
