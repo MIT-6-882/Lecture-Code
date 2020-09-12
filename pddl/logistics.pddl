@@ -6,7 +6,7 @@
   (:predicates  (package ?obj)
                 (truck ?truck)
                 (location ?loc)
-                (road ?loc ?loc)
+                (road ?from ?to)
                 (at ?obj ?loc)
                 (in ?obj ?truck))
 
